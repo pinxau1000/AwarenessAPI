@@ -1,11 +1,17 @@
 package pt.ipleiria.awarenessapi;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Intent;
+import android.support.annotation.NonNull;
+import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
+import android.view.View;
 import android.widget.Toast;
 
+import com.google.android.gms.awareness.Awareness;
+import com.google.android.gms.awareness.snapshot.LocationResponse;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.GoogleMap.OnMapLongClickListener;
@@ -13,14 +19,16 @@ import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
+import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
 
     private GoogleMap mMap;
-    private LatLng currentLatLng;
-    Intent return_int = new Intent();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -31,10 +39,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
-
-        Intent i = getIntent();
-        this.currentLatLng = i.getParcelableExtra("currentLatLng");
-        setResult(Activity.RESULT_CANCELED, return_int);
     }
 
 
@@ -47,26 +51,67 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
      * it inside the SupportMapFragment. This method will only be triggered once the user has
      * installed Google Play services and returned to the app.
      */
+    @SuppressLint("MissingPermission")
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
 
-        // Add a marker in current user location and move the camera
-        mMap.addMarker(new MarkerOptions().position(currentLatLng).title("Current Position"));
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(currentLatLng));
+        final Marker[] mapMarker = new Marker[1];
+        final LatLng[] location = new LatLng[1];
 
-        mMap.setOnMapLongClickListener(new OnMapLongClickListener() {
+        Awareness.getSnapshotClient(MapsActivity.this).getLocation().addOnSuccessListener(new OnSuccessListener<LocationResponse>() {
             @Override
-            public void onMapLongClick(LatLng latLng) {
-                MapsActivity.this.mMap.addMarker(new MarkerOptions()
-                        .position(latLng)
-                        .title("Your Marker")
+            public void onSuccess(LocationResponse locationResponse) {
+                location[0] = new LatLng(locationResponse.getLocation().getLatitude(), locationResponse.getLocation().getLongitude());
+
+
+
+                // Move the camera to current location
+                mMap.moveCamera(CameraUpdateFactory.newCameraPosition(
+                        //Position, Zoom, Tilt, Bearing
+                        new CameraPosition(location[0], 12, 0, 0)));
+                mMap.addMarker(new MarkerOptions().position(location[0])
+                        .draggable(false)
+                        .title("Your current location")
                         .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)));
+                mMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
+                    @Override
+                    public void onMapClick(LatLng latLng) {
+                        if (mapMarker[0] != null) {
+                            mapMarker[0].setPosition(latLng);
+                        } else {
+                            MarkerOptions markerOptions = new MarkerOptions()
+                                    .position(latLng)
+                                    .title("Filter Location")
+                                    .draggable(false);
 
-                MapsActivity.this.mMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
+                            mapMarker[0] = mMap.addMarker(markerOptions);
+                        }
 
-                return_int.putExtra("newFencePos", latLng);
-                setResult(Activity.RESULT_OK, return_int);
+                        location[0] = latLng;
+
+                        Intent returnIntent = new Intent();
+                        returnIntent.putExtra("location", location[0]);
+                        setResult(RESULT_OK, returnIntent);
+                    }
+                });
+
+            }
+        }).addOnFailureListener(new OnFailureListener() {
+            @Override
+            public void onFailure(@NonNull Exception e) {
+                Toast.makeText(MapsActivity.this, "Unable to get your current location.", Toast.LENGTH_SHORT).show();
+
+                Intent returnIntent = new Intent();
+                setResult(RESULT_CANCELED, returnIntent);
+                finish();
+            }
+        });
+
+        FloatingActionButton btn_done = findViewById(R.id.floatingActionButton);
+        btn_done.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
                 finish();
             }
         });

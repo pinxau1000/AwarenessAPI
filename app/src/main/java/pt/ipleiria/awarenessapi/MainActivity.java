@@ -50,6 +50,7 @@ import java.util.List;
 
 import static android.content.ContentValues.TAG;
 
+//TODO: DON'T FORGET TO CHANGE THE GOOGLE MAPS API KEYS!! Check the TODO list and Manifest!
 //TODO: INSTALL A GPS EMULATOR TO EASILY TEST THIS APP.
 
 public class MainActivity extends AppCompatActivity implements GoogleApiClient.OnConnectionFailedListener {
@@ -58,13 +59,17 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
     private static final int REQUEST_MAP_ACTIVITY = 100;
     private static final int MY_PERMISSIONS_REQUEST_FINE_LOCATION_SNAPSHOTS = 1000;
     private static final int MY_PERMISSIONS_REQUEST_FINE_LOCATION_SET_FENCES = 1001;
+    private static final int MY_PERMISSIONS_REQUEST_FINE_LOCATION_MAPS_ACTIVITY = 1002;
+
+    private static final String[] FENCE_KEYS = {"headphoneFenceKey", "onFootWithHeadphonesFenceKey"
+            , "locationFenceKey"};
 
     private GoogleApiClient mGoogleApiClient;
+    private MyFenceReceiver myFenceReceiver;
 
     //To handle the state change
     private PendingIntent myPendingIntent;
     private LatLng latLng;
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -99,7 +104,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
 
         Intent intent = new Intent(FENCE_RECEIVER_ACTION);
         myPendingIntent = PendingIntent.getBroadcast(this, 0, intent, 0);
-        MyFenceReceiver myFenceReceiver = new MyFenceReceiver(this);
+        myFenceReceiver = new MyFenceReceiver(this);
         registerReceiver(myFenceReceiver, new IntentFilter(FENCE_RECEIVER_ACTION));
 
         Button btn_fence = findViewById(R.id.btn_fence);
@@ -135,15 +140,15 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
 
     private void setFences() {
         AwarenessFence headphoneFence = HeadphoneFence.during(HeadphoneState.PLUGGED_IN);
-        registerFence("headphoneFenceKey", headphoneFence);
+        registerFence(FENCE_KEYS[0], headphoneFence);
 
         AwarenessFence onFootFence = DetectedActivityFence.during(DetectedActivityFence.ON_FOOT);
         AwarenessFence onFootWithHeadphonesFence = AwarenessFence.and(onFootFence, headphoneFence);
-        registerFence("onFootWithHeadphonesFenceKey", onFootWithHeadphonesFence);
+        registerFence(FENCE_KEYS[1], onFootWithHeadphonesFence);
 
         @SuppressLint("MissingPermission")
         AwarenessFence locationFence = LocationFence.in(MainActivity.this.latLng.latitude, MainActivity.this.latLng.longitude, 0.000001, 5);
-        registerFence("locationFenceKey", locationFence);
+        registerFence(FENCE_KEYS[2], locationFence);
     }
 
     //TODO: Method 1 of handling the task result with onComplete Listener
@@ -363,6 +368,15 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
     public boolean onOptionsItemSelected(MenuItem item) {
         switch(item.getItemId()){
             case R.id.btn_map:
+                //App doesn't have permission
+                if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(MainActivity.this,
+                            new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                            MY_PERMISSIONS_REQUEST_FINE_LOCATION_MAPS_ACTIVITY);
+                    return true;
+                }
+
+                //Already have permission
                 Intent i = new Intent(this, MapsActivity.class);
                 //Gives the current location to add a marker on the map
                 i.putExtra("currentLatLng", MainActivity.this.latLng);
@@ -379,19 +393,34 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
         switch(requestCode){
             case REQUEST_MAP_ACTIVITY:
                 if(resultCode == RESULT_OK){
-                    this.latLng = data.getParcelableExtra("newFencePos");
+                    //Gets the marker coordinates from maps activity
+                    this.latLng = data.getParcelableExtra("location");
+
+                    TextView tv_snapShot = findViewById(R.id.textView_snapShots);
+                    tv_snapShot.setText("-> FROM MAPS LatLng"+this.latLng.toString());
                 }
             break;
         }
 
-        TextView tv_snapShot = findViewById(R.id.textView_snapShots);
-        tv_snapShot.append("\n___\n LatLng"+this.latLng.toString());
         super.onActivityResult(requestCode, resultCode, data);
+    }
+
+    @Override
+    protected void onPause() {
+
+        unregisterFence(FENCE_KEYS[0]);
+        unregisterFence(FENCE_KEYS[1]);
+        unregisterFence(FENCE_KEYS[2]);
+
+        super.onPause();
     }
 
     @Override
     protected void onStop() {
         mGoogleApiClient.disconnect();
+
+        //if(myFenceReceiver!=null) unregisterReceiver(myFenceReceiver);
+
         super.onStop();
     }
 
@@ -411,7 +440,6 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
                 } else {
                     Log.w(TAG, "PERMISSION FINE LOCATION STORAGE NOT GRANTED BY USER");
                     Toast.makeText(this, "App doesn't have location permission!", Toast.LENGTH_SHORT).show();
-                    //return;
                 }
                 break;
             case MY_PERMISSIONS_REQUEST_FINE_LOCATION_SET_FENCES:
@@ -421,7 +449,18 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
                 } else {
                     Log.w(TAG, "PERMISSION FINE LOCATION STORAGE NOT GRANTED BY USER");
                     Toast.makeText(this, "App doesn't have location permission!", Toast.LENGTH_SHORT).show();
-                    //return;
+                }
+                break;
+                case MY_PERMISSIONS_REQUEST_FINE_LOCATION_MAPS_ACTIVITY:
+                // If request is cancelled, the result arrays are empty.
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    Intent i = new Intent(this, MapsActivity.class);
+                    //Gives the current location to add a marker on the map
+                    i.putExtra("currentLatLng", MainActivity.this.latLng);
+                    startActivityForResult(i, REQUEST_MAP_ACTIVITY);
+                } else {
+                    Log.w(TAG, "PERMISSION FINE LOCATION STORAGE NOT GRANTED BY USER");
+                    Toast.makeText(this, "App doesn't have location permission!", Toast.LENGTH_SHORT).show();
                 }
                 break;
         }
