@@ -61,8 +61,8 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
     private static final int MY_PERMISSIONS_REQUEST_FINE_LOCATION_SET_FENCES = 1001;
     private static final int MY_PERMISSIONS_REQUEST_FINE_LOCATION_MAPS_ACTIVITY = 1002;
 
-    private static final String[] FENCE_KEYS = {"headphoneFenceKey", "onFootWithHeadphonesFenceKey"
-            , "locationFenceKey"};
+    public static final String[] FENCE_KEYS = {"headphoneFenceKey", "onFootWithHeadphonesFenceKey"
+            , "locationFenceKey", "exercisingFenceKey"};
 
     private GoogleApiClient mGoogleApiClient;
     private MyFenceReceiver myFenceReceiver;
@@ -149,6 +149,15 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
         @SuppressLint("MissingPermission")
         AwarenessFence locationFence = LocationFence.in(MainActivity.this.latLng.latitude, MainActivity.this.latLng.longitude, 0.000001, 5);
         registerFence(FENCE_KEYS[2], locationFence);
+
+        AwarenessFence exercisingFence = AwarenessFence.and(headphoneFence, AwarenessFence.or(onFootFence,
+                DetectedActivityFence.during(DetectedActivityFence.RUNNING),
+                DetectedActivityFence.during(DetectedActivityFence.ON_BICYCLE)));
+        registerFence(FENCE_KEYS[3], exercisingFence);
+
+        //TODO Is it possible to set Weather and Places Fences? The documentation says:
+        //TODO The Places and Weather context types are not supported for use with fences. Use the Snapshot API to get values for these types.
+
     }
 
     //TODO: Method 1 of handling the task result with onComplete Listener
@@ -173,7 +182,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
         });
     }
 
-    //TODO: Method 2 of handling the task result with onSucessListener and onFailureListener
+    //TODO: Method 2 of handling the task result with onSuccessListener and onFailureListener
     public void getHeadphoneStateV2(final TextView v) {
         Awareness.getSnapshotClient(this).getHeadphoneState().addOnSuccessListener(new OnSuccessListener<HeadphoneStateResponse>() {
             @Override
@@ -411,6 +420,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
         unregisterFence(FENCE_KEYS[0]);
         unregisterFence(FENCE_KEYS[1]);
         unregisterFence(FENCE_KEYS[2]);
+        unregisterFence(FENCE_KEYS[3]);
 
         super.onPause();
     }
