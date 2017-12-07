@@ -146,9 +146,11 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.O
         AwarenessFence onFootWithHeadphonesFence = AwarenessFence.and(onFootFence, headphoneFence);
         registerFence(FENCE_KEYS[1], onFootWithHeadphonesFence);
 
-        @SuppressLint("MissingPermission")
-        AwarenessFence locationFence = LocationFence.in(MainActivity.this.latLng.latitude, MainActivity.this.latLng.longitude, 0.000001, 5);
-        registerFence(FENCE_KEYS[2], locationFence);
+        if(this.latLng!=null){
+            @SuppressLint("MissingPermission")
+            AwarenessFence locationFence = LocationFence.in(0, 0, 0.000001, 5);
+            registerFence(FENCE_KEYS[2], locationFence);
+        }
 
         AwarenessFence exercisingFence = AwarenessFence.and(headphoneFence, AwarenessFence.or(onFootFence,
                 DetectedActivityFence.during(DetectedActivityFence.RUNNING),
